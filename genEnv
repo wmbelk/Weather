@@ -49,15 +49,29 @@ samp = pd.DataFrame(samp[:, :, 0])
 # %%
 samp.values
 # %%
-x2, y2 = np.meshgrid(samp.index.values, samp.columns.values)
-plt.figure(figsize=(6,5))
-axes = plt.axes(projection='3d')
-axes.plot_surface(x2, y2,samp.values,cmap=cm.coolwarm,
+def plot_temperature_env(samp):
+    x2, y2 = np.meshgrid(samp.index.values, samp.columns.values)
+    plt.figure(figsize=(6,5))
+    axes = plt.axes(projection='3d')
+    axes.plot_surface(x2, y2,samp.values,cmap=cm.coolwarm,
                           linewidth=0, antialiased=False)
-axes.set_xlabel('Longitude')
-axes.set_ylabel('Latitude')
-axes.set_zlabel('Temperature')
+    axes.set_ylabel('Longitude')
+    axes.set_xlabel('Latitude')
+    axes.set_zlabel('Temperature')
 # keeps padding between figure elements
-plt.tight_layout()
-plt.show()
+    plt.tight_layout()
+    plt.show()
+
+plot_temperature_env(samp)
+
+# %%
+
+lat_inc = np.linspace(0,10, len(samp_lat))
+sample_lat_inc = samp_lat[0] + lat_inc
+sample_lat_inc = pd.DataFrame(sample_lat_inc)
+sample_lat_inc.plot()
+# %%
+samp_inc = sample_signal(250, 0.5, mu=sample_lat_inc)
+samp_inc = pd.DataFrame(samp_inc[:, :, 0])
+plot_temperature_env(samp_inc)
 # %%
