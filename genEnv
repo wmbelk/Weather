@@ -6,7 +6,8 @@ from matplotlib import cm
 import pandas as pd
 import scipy.stats as stats
 import seaborn as sns
-
+#%%
+size = 250
 #%%
 
 therm = stats.multivariate_normal.rvs(mean=[0,0], cov=[[1,0],[0,1]], size=1000)
@@ -39,11 +40,12 @@ print(compute_corr_lag_1(sample_signal(5000, 0.5)))
 print(np.mean(sample_signal(5000, 0.5, mu=2)))
 print(np.std(sample_signal(5000, 0.5, sigma=3)))
 #%%
-samp_lat= pd.DataFrame(sample_signal(250, 0.5, mu=2))
+
+samp_lat= pd.DataFrame(sample_signal(size, 0.5, mu=2))
 
 
 # %%
-samp = sample_signal(250, 0.5, mu=samp_lat)
+samp = sample_signal(size, 0.5, mu=samp_lat)
 samp = pd.DataFrame(samp[:, :, 0])
 
 # %%
@@ -72,6 +74,9 @@ sample_lat_inc = pd.DataFrame(sample_lat_inc)
 sample_lat_inc.plot()
 # %%
 samp_inc = sample_signal(250, 0.5, mu=sample_lat_inc)
-samp_inc = pd.DataFrame(samp_inc[:, :, 0])
+long_inc = stats.norm.rvs(loc=.01, scale=.21, size=(size,size), random_state=None)
+long_inc = np.cumsum(long_inc, axis=0)
+samp_inc = pd.DataFrame(samp_inc[:, :, 0]+long_inc)
 plot_temperature_env(samp_inc)
 # %%
+
