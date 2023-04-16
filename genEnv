@@ -15,7 +15,7 @@ therm = pd.DataFrame(therm, columns=['x','y'])
 therm.plot(kind='scatter', x='x', y='y')
 plt.show()
 #%%
-def sample_signal(n_samples, corr, mu=0, sigma=1):
+def sample_AR_signal(n_samples, corr, mu=0, sigma=1):
     assert 0 < corr < 1, "Auto-correlation must be between 0 and 1"
 
     # Find out the offset `c` and the std of the white noise `sigma_e`
@@ -36,17 +36,17 @@ def compute_corr_lag_1(signal):
     return np.corrcoef(signal[:-1], signal[1:])[0][1]
 
 # Examples.
-print(compute_corr_lag_1(sample_signal(5000, 0.5)))
-print(np.mean(sample_signal(5000, 0.5, mu=2)))
-print(np.std(sample_signal(5000, 0.5, sigma=3)))
+print(compute_corr_lag_1(sample_AR_signal(5000, 0.5)))
+print(np.mean(sample_AR_signal(5000, 0.5, mu=2)))
+print(np.std(sample_AR_signal(5000, 0.5, sigma=3)))
 #%%
 
 base_sigma = .05
-samp_lat= pd.DataFrame(sample_signal(size, 0.5, mu=2, sigma=base_sigma))
+samp_lat= pd.DataFrame(sample_AR_signal(size, 0.5, mu=2, sigma=base_sigma))
 
 
 # %%
-samp = sample_signal(size, 0.5, mu=samp_lat, sigma=base_sigma)
+samp = sample_AR_signal(size, 0.5, mu=samp_lat, sigma=base_sigma)
 samp = pd.DataFrame(samp[:, :, 0])
 
 # %%
@@ -74,7 +74,7 @@ sample_lat_inc = pd.DataFrame(sample_lat_inc)
 sample_lat_inc.plot()
 
 # %%
-samp_inc = sample_signal(250, 0.5, mu=sample_lat_inc)
+samp_inc = sample_AR_signal(250, 0.5, mu=sample_lat_inc)
 long_inc = stats.norm.rvs(loc=.01, scale=.21, size=(size,size), random_state=None)
 long_inc = np.cumsum(long_inc, axis=0)
 samp_inc = pd.DataFrame(samp_inc[:, :, 0]+long_inc)
