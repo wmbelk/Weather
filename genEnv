@@ -41,11 +41,12 @@ print(np.mean(sample_signal(5000, 0.5, mu=2)))
 print(np.std(sample_signal(5000, 0.5, sigma=3)))
 #%%
 
-samp_lat= pd.DataFrame(sample_signal(size, 0.5, mu=2))
+base_sigma = .05
+samp_lat= pd.DataFrame(sample_signal(size, 0.5, mu=2, sigma=base_sigma))
 
 
 # %%
-samp = sample_signal(size, 0.5, mu=samp_lat)
+samp = sample_signal(size, 0.5, mu=samp_lat, sigma=base_sigma)
 samp = pd.DataFrame(samp[:, :, 0])
 
 # %%
@@ -67,11 +68,11 @@ def plot_temperature_env(samp):
 plot_temperature_env(samp)
 
 # %%
-
 lat_inc = np.linspace(0,10, len(samp_lat))
 sample_lat_inc = samp_lat[0] + lat_inc
 sample_lat_inc = pd.DataFrame(sample_lat_inc)
 sample_lat_inc.plot()
+
 # %%
 samp_inc = sample_signal(250, 0.5, mu=sample_lat_inc)
 long_inc = stats.norm.rvs(loc=.01, scale=.21, size=(size,size), random_state=None)
