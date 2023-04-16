@@ -68,16 +68,25 @@ def plot_temperature_env(samp):
 plot_temperature_env(samp)
 
 # %%
-lat_inc = np.linspace(0,10, len(samp_lat))
-sample_lat_inc = samp_lat[0] + lat_inc
-sample_lat_inc = pd.DataFrame(sample_lat_inc)
-sample_lat_inc.plot()
+lat_inc_max = 10
+long_inc_mu, long_inc_std = .01, .1
 
-# %%
-samp_inc = sample_AR_signal(250, 0.5, mu=sample_lat_inc)
-long_inc = stats.norm.rvs(loc=.01, scale=.21, size=(size,size), random_state=None)
-long_inc = np.cumsum(long_inc, axis=0)
-samp_inc = pd.DataFrame(samp_inc[:, :, 0]+long_inc)
+def add_inc_MA(size, sample_AR_signal, samp_lat, lat_inc_max, long_inc_mu, long_inc_std):
+    lat_inc = np.linspace(0,lat_inc_max, len(samp_lat))
+    sample_lat_inc = samp_lat[0] + lat_inc
+    sample_lat_inc = pd.DataFrame(sample_lat_inc)
+#sample_lat_inc.plot()
+
+    samp_inc = sample_AR_signal(size, corr=0.5, mu=sample_lat_inc)
+    long_inc = stats.norm.rvs(loc=long_inc_mu, scale=long_inc_std, size=(size,size), random_state=None)
+    long_inc = np.cumsum(long_inc, axis=0)
+    samp_inc = pd.DataFrame(samp_inc[:, :, 0]+long_inc)
+    return samp_inc
+
+samp_inc = add_inc_MA(size, sample_AR_signal, samp_lat, lat_inc_max, long_inc_mu, long_inc_std)
+
+
 plot_temperature_env(samp_inc)
 # %%
+
 
