@@ -1,5 +1,5 @@
 #%%
-import pymc as py
+import pymc as pm
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -159,4 +159,40 @@ xr_temp_pres.Presure.plot.contourf(x='lat',y='long', col='alt', col_wrap=4,
 plt.suptitle('Presure at different altitudes', fontsize = 'xx-large',
              weight = 'extra bold')
 plt.subplots_adjust(top=.92, right=.8, left=.05, bottom=.05)
+# %%
+
+# make Z = a function of time and  X = sin of time and y = cos of time
+
+# %%
+time = np.arange(0, 100, 0.1)
+release_alt = 12_000
+step_alt = 1
+x = np.sin(time)
+y = np.cos(time)
+#create samples from normal distribution and sort them
+samples = stats.norm.rvs(loc=0, scale=10, size=len(time), random_state=None)
+samples.sort()
+#steps = 1/(1+np.exp(-samples)) #sigmoid function
+steps = samples/(samples.max()-samples.min()) /1.3  #normalize
+steps = steps - steps.min() #shift to 0
+ #smaller step per time
+z = release_alt * (1- steps)
+
+plt.plot(time, z)
+plt.xlabel('Time')
+plt.ylabel('Altitude')
+plt.title('Altitude vs Time')
+ax.set_ylim(0, 12000)
+plt.show()
+#plot 3d trajectory of z by x and y
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.plot(x, y, z)
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('Z')
+
+ax.set_zlim(0, 12000)
+plt.title('3D Trajectory')
+plt.show()
 # %%
