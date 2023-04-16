@@ -1,0 +1,12 @@
+import pymc as py
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+import scipy.stats as stats
+
+
+therm = stats.multivariate_normal.rvs(mean=[0,0], cov=[[1,0],[0,1]], size=1000)
+therm = pd.DataFrame(therm, columns=['x','y'])
+therm.plot(kind='scatter', x='x', y='y')
+plt.show()
+
