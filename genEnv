@@ -11,6 +11,11 @@ import xarray as xr
 rng=np.random.Generator(np.random.PCG64(1234))
 #%%
 size = 250
+mean_tempC_Km = 6.5/1000
+max_alt_Km = 13
+lat = np.arange(0, size)
+long = np.arange(0, size)
+alt = np.arange(0, max_alt_Km)*1000
 #%%
 
 therm = stats.multivariate_normal.rvs(mean=[0,0], cov=[[1,0],[0,1]], size=1000)
@@ -91,8 +96,7 @@ samp_inc = add_inc_MA(size, sample_AR_signal, samp_lat, lat_inc_max, long_inc_mu
 
 plot_temperature_env(samp_inc)
 # %%
-mean_tempC_Km = 6.5/1000
-max_alt_Km = 13
+
 
 #allow for inversion by having random lapse rate at diff altitudes
 def add_altitude_effects(rng, samp_inc, mean_tempC_Km, max_alt_Km):
@@ -109,16 +113,9 @@ def add_altitude_effects(rng, samp_inc, mean_tempC_Km, max_alt_Km):
 
 temp_3D = add_altitude_effects(rng, samp_inc, mean_tempC_Km, max_alt_Km)
 
-plot_temperature_env(temp_3D[:,:,0])
 # %%
 
-lat = np.arange(0, size)
-long = np.arange(0, size)
-alt = np.arange(0, max_alt_Km)*1000
-
 xr_temp_3D = xr.DataArray(temp_3D, dims=['lat', 'long', 'alt'], coords={'lat': lat, 'long': long, 'alt': alt})
-
-#%%
 xr_temp_3D.plot.contourf(x='lat',y='long',col='alt', col_wrap=4,
                          robust=True, vmin=-90, vmax=32, levels=20)
 # %%
