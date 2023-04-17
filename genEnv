@@ -122,7 +122,7 @@ plt.suptitle('Temperature at different altitudes', fontsize = 'xx-large',
              weight = 'extra bold')
 plt.subplots_adjust(top=.92, right=.8, left=.05, bottom=.05)
 
-xr_tempC_Km=  xr.DataArray(tempC_Km, dims=['alt'], coords={'alt': alt})
+xr_tempC_Km=  xr.DataArray(mean_tempC_Km, dims=['alt'], coords={'alt': alt})
 
 # %%
 #barometric formula
@@ -144,19 +144,19 @@ def add_barometric_effects(T0 = 288.15-273.15, L = 0.0065, H = 0,  P0 = 101_325.
     return P0 * (1 - L * H / (T0+273.15)) ** (g0 * M / (R * L))
 
 
-presure = add_barometric_effects(T0 = xr_temp_3D, 
+pressure = add_barometric_effects(T0 = xr_temp_3D, 
                                  L = xr_tempC_Km, 
                                  H = xr_temp_3D.alt,  P0 = 101_325.00, g0 = 9.80665, M = 0.0289644, R = 8.3144598)
     
 # %%
 xr_temp_pres = xr.merge(
     [xr_temp_3D.rename("Temperature"), 
-     presure.rename("Presure")]
+     pressure.rename("pressure")]
      )
 # %%
-xr_temp_pres.Presure.plot.contourf(x='lat',y='long', col='alt', col_wrap=4,
+xr_temp_pres.pressure.plot.contourf(x='lat',y='long', col='alt', col_wrap=4,
                          robust=True, levels=20)
-plt.suptitle('Presure at different altitudes', fontsize = 'xx-large',
+plt.suptitle('pressure at different altitudes', fontsize = 'xx-large',
              weight = 'extra bold')
 plt.subplots_adjust(top=.92, right=.8, left=.05, bottom=.05)
 # %%
@@ -167,8 +167,8 @@ plt.subplots_adjust(top=.92, right=.8, left=.05, bottom=.05)
 time = np.arange(0, 100, 0.1)
 release_alt = 12_000
 step_alt = 1
-x = np.sin(time)
-y = np.cos(time)
+x = (np.sin(time) +1) * 250/2
+y = (np.cos(time) +1 ) * 250/2
 #create samples from normal distribution and sort them
 samples = stats.norm.rvs(loc=0, scale=10, size=len(time), random_state=None)
 samples.sort()
@@ -195,4 +195,22 @@ ax.set_zlabel('Z')
 ax.set_zlim(0, 12000)
 plt.title('3D Trajectory')
 plt.show()
+# %%
+#select from xarray the temperature at the pressure of the trajectory
+xr_x = xr.DataArray(x, dims=['time'], coords={'time': time})
+xr_y = xr.DataArray(y, dims=['time'], coords={'time': time})
+xr_z = xr.DataArray(z, dims=['time'], coords={'time': time})
+
+xr_traj_env = xr_temp_pres.sel(lat=xr_x,long=xr_y,alt=xr_z, method='nearest')
+#.Temperature.plot.contourf(x='lat',y='long', col='time', col_wrap=4)
+# %%
+#xarray 3d plot of temperature over time
+
+xr_traj_env.Temperature.plot()
+plt.suptitle('Temperature over time', fontsize = 'xx-large')
+plt.show()
+xr_traj_env.pressure.plot()
+plt.suptitle('pressure over time', fontsize = 'xx-large')
+plt.show()
+
 # %%
