@@ -214,3 +214,24 @@ plt.suptitle('pressure over time', fontsize = 'xx-large')
 plt.show()
 
 # %%
+#add wind direction and speed then its velocity relvant to the trajectory
+
+# %%
+#add wind direction and speed then its velocity relvant to the trajectory
+wind_direction = 180 #degrees from north is 0, from east is 90, from south is 180, from west is 270
+wind_speed = 10 #m/s #TODO: add wind speed as a function of altitude and lat long
+wind_speed_long = wind_speed * np.cos(np.deg2rad(wind_direction))
+wind_speed_lat = wind_speed * np.sin(np.deg2rad(wind_direction))
+wind_speed_z = 0
+display('wind_speed_long',wind_speed_long, 
+        'wind_speed_lat',wind_speed_lat, 
+        'wind_speed_z',wind_speed_z)
+# %%
+#add wind velocity relvant to the trajectory
+xr_traj_env['wind_speed_long'] = wind_speed_long
+xr_traj_env['wind_speed_lat'] = wind_speed_lat
+xr_traj_env['wind_speed_z'] = wind_speed_z
+xr_traj_env['wind_speed'] = np.sqrt(wind_speed_long**2 + wind_speed_lat**2 + wind_speed_z**2)
+xr_traj_env['wind_direction'] = wind_direction
+xr_traj_env
+# %%
