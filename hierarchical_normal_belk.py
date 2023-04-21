@@ -65,16 +65,16 @@ def hierarchical_normal(name, mu=0., sigma=None, dims=None, part_pool_sigma=None
         if part_pool_sigma == None:
             if sigma == None:
                 σ = pm.HalfCauchy(f'σ_{name}', beta=5.,
-                                  testval=(1.))
+                                  initval=(1.))
             else:
                 # half-normal is easier to relate to if specifying a prior
                 # HalfCauchy(f'σ_{name}', beta=sigma, dims=dims_sigma)
                 σ = pm.HalfNormal(f'σ_{name}', sigma=sigma, dims=dims_sigma,
-                                  testval=(1.))
+                                  initval=(1.))
         else:  # use RV for partially pooled establishment
             # HalfCauchy(f'σ_{name}', beta=part_pool_sigma, dims=dims_sigma)
             σ = pm.HalfNormal(f'σ_{name}', sigma=part_pool_sigma, dims=dims_sigma,
-                              testval=(1.))
+                              initval=(1.))
 
     if dims == None:
         return pm.Deterministic(name, μ + Δ * σ)
