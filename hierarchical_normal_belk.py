@@ -7,7 +7,7 @@ Created on Fri Mar 19 18:29:15 2021
 import pymc as pm
 
 
-def hierarchial_normal(name, mu=0., sigma=None, dims=None, part_pool_sigma=None, prior_sigma=None, dims_sigma=None, sigma_index=None):
+def hierarchical_normal(name, mu=0., sigma=None, dims=None, part_pool_sigma=None, prior_sigma=None, dims_sigma=None, sigma_index=None):
     '''
         lifted core from: https://austinrochford.com/posts/2017-07-09-mrpymc3.html
         For use in Pymc3 models
