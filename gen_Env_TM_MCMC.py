@@ -210,13 +210,15 @@ time
 # %%
 # make Z = a function of time and  X = sin of time and y = cos of time
 time = pd.to_datetime( np.arange(0, 120*60, 1), unit='s')
+print(time)
 
+# %%
 release_alt = 12_000 #Troposphere goes to about 12Km, thermal is about linear there
 step_alt = 1
 
-turn_rate = 5
-x = (np.sin((time.minute/60 +time.second/(60*60))*2*np.pi*turn_rate) +1) * size/2 +30
-y = (np.cos((time.minute/60 +time.second/(60*60))*2*np.pi*turn_rate) +1 ) * size/2
+turn_rate = 2
+x = (np.sin((time.minute/60 +time.second)*2*np.pi*turn_rate) +1) * size/2 +30
+y = (np.cos((time.minute/60 +time.second)*2*np.pi*turn_rate) +1 ) * size/2
 #create samples from normal distribution and sort them
 samples = stats.weibull_max.rvs(1.5, loc=0, scale=1, size=len(time), random_state=None)
 samples.sort()
@@ -257,9 +259,9 @@ xr_traj_env.attrs =dict(units='seconds since 1970-01-01 00:00:00')
 
 xr_traj_env
 
-# %%
+'''# %%
 xr_traj_env.resample(time='5min').mean().Temperature.plot()
-xr_traj_env.resample(time='10min').mean().Temperature.plot()
+xr_traj_env.resample(time='10min').mean().Temperature.plot()'''
 
 # %%
 xr_traj_env.Temperature.plot()
@@ -387,8 +389,8 @@ with pm.Model(coords=coords) as thermal_pres:
     Temp_ = pm.ConstantData('Temperature_Samples', xr_traj_env_time_coords.Temperature.values, dims='alt_lat_long_time' )
     Pres_ = pm.ConstantData('Pressure_Samples', xr_traj_env_time_coords.Pressure.values, dims='alt_lat_long_time' )
     #prior on effect on temp (degC) of altitude and lat, long
-    baseline_temp = pm.Normal('baseline_temp', mu=15, sigma=3) #'L'
-    Alt_effect_temp = pm.Normal('Alt_effect_temp_Km', mu=-6, sigma=.1)
+    baseline_temp = pm.Normal('baseline_temp', mu=0, sigma=5) #'L'
+    Alt_effect_temp = pm.Normal('Alt_effect_temp_Km', mu=-6, sigma=.5)
     Lat_effect_temp = pm.Normal('Lat_effect_temp', mu=0, sigma=.01)
     Long_effect_temp = pm.Normal('Long_effect_temp', mu=0, sigma=.01)
     #prior on temp and pressure
@@ -398,19 +400,19 @@ with pm.Model(coords=coords) as thermal_pres:
                                dims='alt_lat_long_time')
     #mu_t = hierarchical_normal('temperature_mean', mu= mu_mu_t, sigma = 2, dims='alt_lat_long_time')
     #mu_p = hierarchical_normal('pressure_mean', 
-    P0 = 101_325.00
+    P0 = Pres_[0]#101_325.00
     g0 = 9.80665
     M = 0.0289644
     R = 8.3144598
-    mu_p= pm.Deterministic('mu_p',P0 *  ((mu_t+273.15)/(Temp_[0]+273.15)) ** (g0 * M / (R * Alt_effect_temp/1000)),
+    mu_p= pm.Deterministic('mu_p',P0 *  ((mu_t+273.15)/(Temp_[0]+273.15)) ** (g0 * M / (R * (-Alt_effect_temp/1000))), #needed negative b/c the lapse is positive, but use addition in effect
                                  dims='alt_lat_long_time')
     '''add_barometric_effects(T = mu_t,#Temp_, 
                                  L = Alt_effect_temp/1000, H = Alt_,  
                                  P0 = 101_325.00, g0 = 9.80665, M = 0.0289644, R = 8.3144598)'''
     #add_barometric_effects = P0 * (T/T0) ** (g0 * M / (R * L))
     #prior on error variation
-    sigma_t=pm.Exponential('model_error_t', 1/25)
-    sigma_p=pm.Exponential('model_error_p', 1/25000)
+    sigma_t=pm.Exponential('model_error_t', 1/15)
+    sigma_p=pm.Exponential('model_error_p', 1/5000)
     #adjusted temp - normal dist error term
     obs_t = pm.Normal('obs_t', mu=mu_t, sigma=sigma_t, 
                     observed = Temp_, dims='alt_lat_long_time')
@@ -426,7 +428,7 @@ az.plot_ppc(idata2, group='prior', kind='cumulative')
 
 # %%
 with thermal_pres:
-    idata2.extend(pm.sample(100, tune=1000))#,  nuts=dict(max_treedepth=15, target_accept=0.9)))
+    idata2.extend(pm.sample(1000, tune=1000, chains = 4, cores=1))#,  nuts=dict(max_treedepth=15, target_accept=0.9)))
     az.plot_trace(idata2)
     plt.subplots_adjust (hspace=0.4)#, wspace=0.4) 
     
@@ -446,34 +448,27 @@ idx_south = idata2.constant_data.where(idata2.constant_data.Latitude<lat_mid, dr
 idx_east = idata2.constant_data.where(idata2.constant_data.Longitude>long_mid, drop=True).alt_lat_long_time.values
 idx_west = idata2.constant_data.where(idata2.constant_data.Longitude<long_mid, drop=True).alt_lat_long_time.values
 
-
 # %%
-idata2.sel(alt_lat_long_time=np.intersect1d(idx_north,idx_east))
 
-# %%
-def reset_multi_dim(need_it_expanded, have_it, dims):
-    """Reset the dims of a xarray to match another xarray"""    
-    for dim in dims:
-        if dim in have_it.dims:
-            try:
-                need_it_expanded[dim] = have_it[dim]
-                need_it_expanded= need_it_expanded.unstack(dim)
-            except:
-                pass#need_it_expanded = need_it_expanded.assign_coords({dim: have_it[dim]})
-            
-    return need_it_expanded
+class DimCoordLabeller_alt(azl.BaseLabeller):
+    """WIP."""
+    def __init__(self, coords_ds):
+        self.coords_ds = xr.Dataset(coords)
 
-idata2.map(reset_multi_dim, have_it=xr_traj_env_time_coords, dims=['alt_lat_long_time'])
-print(idata2)
+    def dim_coord_to_str(self, dim, coord_val, coord_idx):
+        """WIP."""#format decimals in f statement
+        temp =  self.coords_ds.sel(pointwise_sel=coord_val).items()
+        temp = [(v.values) for _,v in temp][0]
+        return f"{temp:.2f}" 
+    
+coords = {
+    'alt_lat_long_time': xr.DataArray(
+        idata2.constant_data.Altitude_m.values, 
+        dims=['pointwise_sel'],coords={'pointwise_sel': idata2.constant_data.alt_lat_long_time.values}
+    )
+}        
 
-# %%
-idata3 = idata2.copy()
-idata3.posterior['alt_lat_long_time']  = idata3.constant_data.Altitude_m
-idata3
-
-# %%
-{f'mu_t[{i}]': alti for i, alti in zip(idata2.constant_data.alt_lat_long_time.values,
-                                                                             idata2.constant_data.Altitude_m.values)}
+labeller = DimCoordLabeller_alt(coords)
 
 # %%
 
@@ -490,7 +485,7 @@ for i, ((N_S_label,N_S_idx), (E_W_label,E_W_idx)) in enumerate([[i,j]
                    var_names=['mu_t'],
                    kind='ridgeplot', 
                    combined=True, ax= ax[i],
-                   #labeller=labeller
+                   labeller=labeller
                    )
     #align the y axis
     #ax[i].set_ylim(0, 10000)
@@ -510,7 +505,4 @@ with thermal_pres:
 
 
 # %%
-az.plot_dist_comparison(idata2, kind='observed')
-
-
-
+az.plot_dist_comparison(idata2, kind='observed', labeller=labeller)
