@@ -326,10 +326,10 @@ xr_traj_env_time
 # # Using average values per Km; TODO: find more principled way to remove autocorrelation 
 
 # %%
-bins_alt = np.linspace(alt.min(), alt.max(), 11)
+'''bins_alt = np.linspace(alt.min(), alt.max(), 11)
 bins_lat =[lat.min(), lat.mean(),lat.max()] #quadrents
 bins_long = [long.min(), long.mean(), long.max()]# quadrents
-bins_time = np.arange(time.min(), time.max()+1, 10)
+bins_time = np.arange(time.min(), time.max()+1, 10)'''
 
 # %%
 #grouping lat long and alt
@@ -346,7 +346,7 @@ if False:
 
 # %%
 #grouping lat long and alt and time
-grp_traj_env=xarray_reduce(xr_traj_env, #.drop_vars(['wind_speed_long', 'wind_speed_lat', 'wind_speed_z', 'wind_speed', 'wind_direction']),
+'''grp_traj_env=xarray_reduce(xr_traj_env, #.drop_vars(['wind_speed_long', 'wind_speed_lat', 'wind_speed_z', 'wind_speed', 'wind_direction']),
                'alt', 'lat', 'long', 'time',
                  func='mean',
                  expected_groups=(
@@ -362,7 +362,7 @@ grp_traj_env = grp_traj_env.stack(alt_lat_long_time=(
     'long_bins',
     'time_bins')).dropna(dim='alt_lat_long_time')
 
-grp_traj_env.coords
+grp_traj_env.coords'''
 
 # %% [markdown]
 # # Model temp and pressure varying by altitude, lat, & long
@@ -387,10 +387,10 @@ with pm.Model(coords=coords) as thermal_pres:
     Temp_ = pm.ConstantData('Temperature_Samples', xr_traj_env_time_coords.Temperature.values, dims='alt_lat_long_time' )
     Pres_ = pm.ConstantData('Pressure_Samples', xr_traj_env_time_coords.Pressure.values, dims='alt_lat_long_time' )
     #prior on effect on temp (degC) of altitude and lat, long
-    baseline_temp = pm.Normal('baseline_temp', mu=0, sigma=20) #'L'
-    Alt_effect_temp = pm.Normal('Alt_effect_temp_Km', mu=-6, sigma=2)
-    Lat_effect_temp = pm.Normal('Lat_effect_temp', mu=0, sigma=1)
-    Long_effect_temp = pm.Normal('Long_effect_temp', mu=0, sigma=1)
+    baseline_temp = pm.Normal('baseline_temp', mu=15, sigma=3) #'L'
+    Alt_effect_temp = pm.Normal('Alt_effect_temp_Km', mu=-6, sigma=.1)
+    Lat_effect_temp = pm.Normal('Lat_effect_temp', mu=0, sigma=.01)
+    Long_effect_temp = pm.Normal('Long_effect_temp', mu=0, sigma=.01)
     #prior on temp and pressure
     #TODO: PULL FROM DATABASE into a pm.Interpolated...maybe not: need relationship between data spreads?
     mu_t = pm.Deterministic('mu_t',
@@ -398,14 +398,19 @@ with pm.Model(coords=coords) as thermal_pres:
                                dims='alt_lat_long_time')
     #mu_t = hierarchical_normal('temperature_mean', mu= mu_mu_t, sigma = 2, dims='alt_lat_long_time')
     #mu_p = hierarchical_normal('pressure_mean', 
-    mu_p= pm.Deterministic('mu_p',add_barometric_effects(T = Temp_, 
-                                 L = Alt_effect_temp/1000, H = Alt_,  
-                                 P0 = 101_325.00, g0 = 9.80665, M = 0.0289644, R = 8.3144598),
+    P0 = 101_325.00
+    g0 = 9.80665
+    M = 0.0289644
+    R = 8.3144598
+    mu_p= pm.Deterministic('mu_p',P0 *  ((mu_t+273.15)/(Temp_[0]+273.15)) ** (g0 * M / (R * Alt_effect_temp/1000)),
                                  dims='alt_lat_long_time')
+    '''add_barometric_effects(T = mu_t,#Temp_, 
+                                 L = Alt_effect_temp/1000, H = Alt_,  
+                                 P0 = 101_325.00, g0 = 9.80665, M = 0.0289644, R = 8.3144598)'''
     #add_barometric_effects = P0 * (T/T0) ** (g0 * M / (R * L))
     #prior on error variation
-    sigma_t=pm.Exponential('model_error_t', 1/0.025)
-    sigma_p=pm.Exponential('model_error_p', 10/1)
+    sigma_t=pm.Exponential('model_error_t', 1/25)
+    sigma_p=pm.Exponential('model_error_p', 1/25000)
     #adjusted temp - normal dist error term
     obs_t = pm.Normal('obs_t', mu=mu_t, sigma=sigma_t, 
                     observed = Temp_, dims='alt_lat_long_time')
@@ -421,7 +426,7 @@ az.plot_ppc(idata2, group='prior', kind='cumulative')
 
 # %%
 with thermal_pres:
-    idata2.extend(pm.sample(1000, tune=1000,  nuts=dict(max_treedepth=15, target_accept=0.9)))
+    idata2.extend(pm.sample(100, tune=1000))#,  nuts=dict(max_treedepth=15, target_accept=0.9)))
     az.plot_trace(idata2)
     plt.subplots_adjust (hspace=0.4)#, wspace=0.4) 
     
