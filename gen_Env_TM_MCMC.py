@@ -20,7 +20,7 @@ import flox
 from flox.xarray import xarray_reduce # useful in doing multiple coord groupings
 
 #%%
-
+import from_posterior_belk as fpb
 # %%
 rng=np.random.Generator(np.random.PCG64(1234))
 #%%
@@ -366,13 +366,61 @@ grp_traj_env.coords'''
 
 # %% [markdown]
 # # Model temp and pressure varying by altitude, lat, & long
+# ## Try out interpolated prior
 
 # %%
 
 coords={'alt_lat_long_time':
-                      np.arange(xr_traj_env_time.sizes['time'], dtype=int)
+                      np.arange(xr_traj_env_time.sizes['time'], dtype=int),
+                      'alt':xr_traj_env_time.alt.values
                       }
 coords
+
+#%%
+# temperature prior
+prior_source = xr_temp_pres.interp(
+    alt=xr_traj_env_time_coords.alt.values,
+    method='linear').stack(z=['lat','long'])
+with pm.Model(coords=coords) as interpo_prior:
+    Temp_ = pm.ConstantData('Temperature_Samples', xr_traj_env_time_coords.Temperature.values, dims='alt_lat_long_time' )
+    Pres_ = pm.ConstantData('Pressure_Samples', xr_traj_env_time_coords.Pressure.values, dims='alt_lat_long_time' )
+
+    stacker = [[fpb.from_posterior(f"temp_{x:.0f}",prior_source.isel(alt=i).Temperature),
+      fpb.from_posterior(f"pres_{x:.0f}",prior_source.isel(alt=i).Pressure)]
+      for i,x in enumerate(prior_source.alt)]
+    
+    temp_interpo = pm.math.stack([x[0] for x in stacker], axis=0)
+    pres_interpo = pm.math.stack([x[1] for x in stacker], axis=0)
+
+    sigma_t=pm.Exponential('model_error_t', 1/25)
+    sigma_p=pm.Exponential('model_error_p', 1/25000)
+
+    obs_t = pm.Normal('obs_t', mu=temp_interpo, sigma=sigma_t, observed=Temp_)
+    obs_p = pm.Normal('obs_p', mu=pres_interpo, sigma=sigma_p, observed=Pres_)
+pm.model_to_graphviz(interpo_prior)
+
+#%%
+with interpo_prior:
+    interpo_prior_trace = pm.sample_prior_predictive(1000)
+az.plot_ppc(interpo_prior_trace,group='prior', kind='cumulative')
+#%% 
+with interpo_prior:
+    interpo_prior_trace.extend(
+        pm.sample(1000, tune=1000, cores=1, chains=1)
+        )
+    az.plot_trace(interpo_prior_trace)
+    plt.subplots_adjust(hspace=0.4)
+
+#%%
+with interpo_prior:
+    pm.sample_posterior_predictive(interpo_prior_trace, extend_inferencedata=True)
+    az.plot_dist_comparison(interpo_prior_trace, kind='observed')
+ 
+#still have trouble in relating the temperature interpolations to the altitude
+
+
+# %% [markdown]
+# # Old model; using functional relationship between temperature and altitude
 
 # %%
 with pm.Model(coords=coords) as thermal_pres:
