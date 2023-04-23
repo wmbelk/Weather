@@ -37,6 +37,8 @@ alt = np.arange(0, max_alt_Km)*1000
 # %%
 def sample_AR_signal(n_samples, corr, mu=0, sigma=1):
     assert 0 < corr < 1, "Auto-correlation must be between 0 and 1"
+    burn_samples = 100
+    n_samples=n_samples+burn_samples
 
     # Find out the offset `c` and the std of the white noise `sigma_e`
     # that produce a signal with the desired mean and variance.
@@ -49,8 +51,9 @@ def sample_AR_signal(n_samples, corr, mu=0, sigma=1):
     signal = [c + np.random.normal(0, sigma_e)]
     for _ in range(1, n_samples):
         signal.append(c + corr * signal[-1] + np.random.normal(0, sigma_e))
+    #signal=signal[burn_samples:n_samples]
 
-    return np.array(signal)
+    return np.array(signal[burn_samples:])
 
 def compute_corr_lag_1(signal):
     return np.corrcoef(signal[:-1], signal[1:])[0][1]
@@ -62,15 +65,18 @@ def compute_corr_lag_1(signal):
 
 # %%
 base_sigma = .05
-samp_lat= pd.DataFrame(sample_AR_signal(size-horz_offest, 0.5, mu=2, sigma=base_sigma))
+samp_lat_base = sample_AR_signal(size-horz_offest, 0.5, mu=2, sigma=base_sigma)
+samp_lat= pd.DataFrame(samp_lat_base)
+print(compute_corr_lag_1(samp_lat_base), samp_lat)#.iloc[:,0]),compute_corr_lag_1(samp_lat.iloc[0,:]))
 # %%
 
 # %% [markdown]
 # Extend along longitude
 
 # %%
-samp = sample_AR_signal(size-horz_offest, 0.5, mu=samp_lat, sigma=base_sigma)
+samp = sample_AR_signal(size-horz_offest, 0.75, mu=samp_lat, sigma=base_sigma)
 samp = pd.DataFrame(samp[:, :, 0])
+print(compute_corr_lag_1(samp.iloc[:,0]),compute_corr_lag_1(samp.iloc[0,:]))
 # %%
 
 # %%
@@ -94,8 +100,9 @@ plot_temperature_env(samp)
 # Add trend on top of the AR variation -- to baseline thermal
 
 # %%
-lat_inc_max = 5
-long_inc_mu, long_inc_std = .01, .1
+lat_inc_mu = 15/100
+lat_inc_max = lat_inc_mu *150
+long_inc_mu, long_inc_std = 25/100, .1
 
 def add_inc_MA(size, horz_offest, sample_AR_signal, samp_lat, lat_inc_max, long_inc_mu, long_inc_std):
     lat_inc = np.linspace(0,lat_inc_max, len(samp_lat))
@@ -201,10 +208,6 @@ plt.subplots_adjust(top=.92, right=.8, left=.05, bottom=.05)
 
 # %% [markdown]
 # # make trajectory and get corresponding temp and pres
-
-# %%
-time=pd.to_datetime( np.arange(0, 1000, 1), unit='s')
-time
 
 # %%
 # %%
@@ -320,7 +323,41 @@ xr_traj_env_time = xr_traj_env_time.expand_dims({"lat":xr_traj_env_time_coords.l
 
 #grp_traj_env = 
 xr_traj_env_time.stack(alt_lat_long_time=['alt','lat','long','time'],create_index=True)
-xr_traj_env_time
+
+
+#%% [markdown]
+#Put in Ballon data
+
+#%%
+
+ballon_alt_samples = np.arange(start=0,stop=max_alt_Km*1000+1,step=500)
+ballon_time = ballon_alt_samples/5
+ballon_lat = [40, 135]
+ballon_long = [40, 75]
+ballon_delay = 7*60*60 # 7 hrs later in seconds
+xr_ballon_env = xr_temp_pres.interp(lat=
+                                    xr.DataArray([ballon_lat]*len(ballon_time), 
+                                                 dims=['time','launch'],
+                                                 coords={'launch':[0,1],
+                                                         'time_l':(('launch','time'),[ballon_time, ballon_time+ballon_delay])}),
+                                    long=
+                                    xr.DataArray([ballon_long]*len(ballon_time),
+                                                 dims=['time','launch'],
+                                                 coords={'launch':[0,1],
+                                                         'time_l':(('launch','time'),[ballon_time, ballon_time+ballon_delay])}),
+                                    alt=
+                                    xr.DataArray([ballon_alt_samples,ballon_alt_samples],
+                                                 dims=['launch','time'],
+                                                 coords={'launch':[0,1],
+                                                         'time_l':(('launch','time'),[ballon_time, ballon_time+ballon_delay])}),
+                                    )
+xr_ballon_env= xr_ballon_env.interpolate_na(dim='time',method='linear', fill_value = 'extrapolate')
+xr_ballon_env.attrs =dict(units='seconds since 1970-01-01 00:00:00')
+
+
+xr_ballon_env
+
+
 
 # %% [markdown]
 # # Using average values per Km; TODO: find more principled way to remove autocorrelation 
