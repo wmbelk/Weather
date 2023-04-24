@@ -37,6 +37,8 @@ alt = np.arange(0, max_alt_Km)*1000
 # %%
 def sample_AR_signal(n_samples, corr, mu=0, sigma=1):
     assert 0 < corr < 1, "Auto-correlation must be between 0 and 1"
+    burn_samples = 100
+    n_samples=n_samples+burn_samples
 
     # Find out the offset `c` and the std of the white noise `sigma_e`
     # that produce a signal with the desired mean and variance.
@@ -49,8 +51,9 @@ def sample_AR_signal(n_samples, corr, mu=0, sigma=1):
     signal = [c + np.random.normal(0, sigma_e)]
     for _ in range(1, n_samples):
         signal.append(c + corr * signal[-1] + np.random.normal(0, sigma_e))
+    #signal=signal[burn_samples:n_samples]
 
-    return np.array(signal)
+    return np.array(signal[burn_samples:])
 
 def compute_corr_lag_1(signal):
     return np.corrcoef(signal[:-1], signal[1:])[0][1]
@@ -62,15 +65,18 @@ def compute_corr_lag_1(signal):
 
 # %%
 base_sigma = .05
-samp_lat= pd.DataFrame(sample_AR_signal(size-horz_offest, 0.5, mu=2, sigma=base_sigma))
+samp_lat_base = sample_AR_signal(size-horz_offest, 0.5, mu=2, sigma=base_sigma)
+samp_lat= pd.DataFrame(samp_lat_base)
+print(compute_corr_lag_1(samp_lat_base), samp_lat)#.iloc[:,0]),compute_corr_lag_1(samp_lat.iloc[0,:]))
 # %%
 
 # %% [markdown]
 # Extend along longitude
 
 # %%
-samp = sample_AR_signal(size-horz_offest, 0.5, mu=samp_lat, sigma=base_sigma)
+samp = sample_AR_signal(size-horz_offest, 0.75, mu=samp_lat, sigma=base_sigma)
 samp = pd.DataFrame(samp[:, :, 0])
+print(compute_corr_lag_1(samp.iloc[:,0]),compute_corr_lag_1(samp.iloc[0,:]))
 # %%
 
 # %%
@@ -94,8 +100,9 @@ plot_temperature_env(samp)
 # Add trend on top of the AR variation -- to baseline thermal
 
 # %%
-lat_inc_max = 5
-long_inc_mu, long_inc_std = .01, .1
+lat_inc_mu = 15/100
+lat_inc_max = lat_inc_mu *150
+long_inc_mu, long_inc_std = 25/100, .1
 
 def add_inc_MA(size, horz_offest, sample_AR_signal, samp_lat, lat_inc_max, long_inc_mu, long_inc_std):
     lat_inc = np.linspace(0,lat_inc_max, len(samp_lat))
@@ -203,10 +210,6 @@ plt.subplots_adjust(top=.92, right=.8, left=.05, bottom=.05)
 # # make trajectory and get corresponding temp and pres
 
 # %%
-time=pd.to_datetime( np.arange(0, 1000, 1), unit='s')
-time
-
-# %%
 # %%
 # make Z = a function of time and  X = sin of time and y = cos of time
 time = pd.to_datetime( np.arange(0, 120*60, 1), unit='s')
@@ -254,7 +257,59 @@ xr_z = xr.DataArray(z, dims=['time'], coords={'time': time})
 xr_traj_env = xr_temp_pres.interp(lat=xr_x,long=xr_y,alt=xr_z)#, method='nearest')
 xr_traj_env = xr_traj_env.interpolate_na(dim='time', method='linear', fill_value="extrapolate")
 xr_traj_env.attrs =dict(units='seconds since 1970-01-01 00:00:00')
+ # delay start of trajectory
+xr_traj_env['time'] = xr_traj_env.time +pd.Timedelta(hours=.75)
 
+xr_traj_env
+# put in ballon data before resampling
+
+#%% [markdown]
+#Put in Ballon data
+
+#%%
+
+ballon_alt_samples = np.arange(start=0,stop=max_alt_Km*1000+1,step=500)
+ballon_time = ballon_alt_samples/5
+ballon_time = pd.to_datetime(  ballon_time, unit='s')
+ballon_lat = [40, 100]
+ballon_long = [40, 125]
+launch_count = 2
+ballon_delay = pd.Timedelta(hours=7)# 7*60*60 # 7 hrs later in seconds
+launch_idx = np.arange(0,launch_count)
+def ballon_release(xr_temp_pres, ballon_alt_samples, ballon_time, ballon_lat, ballon_long, ballon_delay, launch_idx):
+    #ballon launch delay is in hours, will convert number to pd.Timedelta
+    ballon_delay = pd.Timedelta(hours=ballon_delay)
+    coords={'launch':[launch_idx],'time':(('time'),ballon_time+ballon_delay)}
+    xr_ballon_env = xr_temp_pres.interp(lat=
+                                    xr.DataArray([[ballon_lat[launch_idx]]]*len(ballon_time), 
+                                                 dims=['time','launch'],
+                                                 coords=coords),
+                                    long=
+                                    xr.DataArray([[ballon_long[launch_idx]]]*len(ballon_time),
+                                                 dims=['time','launch'],
+                                                 coords=coords),
+                                    alt=
+                                    xr.DataArray([ballon_alt_samples],
+                                                 dims=['launch','time'],
+                                                 coords=coords),
+                                    )
+    xr_ballon_env= xr_ballon_env.interpolate_na(dim='time',method='linear', fill_value = 'extrapolate')
+    xr_ballon_env.attrs =dict(units='seconds since 1970-01-01 00:00:00')
+    return xr_ballon_env
+
+
+xr_ballon_env_0 = ballon_release(xr_temp_pres, ballon_alt_samples, ballon_time, ballon_lat, ballon_long, ballon_delay=0, launch_idx=0)
+xr_ballon_env_1 = ballon_release(xr_temp_pres, ballon_alt_samples, ballon_time, ballon_lat, ballon_long, ballon_delay=7, launch_idx=1)
+
+#TODO: remove the 'launch' dimension from the ballon_release function, then do not squeeze it out
+xr_ballon_env = xr.concat([xr_ballon_env_0.squeeze(), 
+                           xr_ballon_env_1.squeeze()], 
+                           dim='time')
+xr_ballon_env
+
+xr_traj_env = xr.concat([xr_traj_env, 
+                         xr_ballon_env.drop('launch')],
+                           dim='time').sortby('time')
 xr_traj_env
 
 # %%
@@ -268,7 +323,6 @@ plt.show()
 xr_traj_env.Pressure.plot()
 plt.suptitle('pressure over time', fontsize = 'xx-large')
 plt.show()
-
 
 # %%
 #add wind direction and speed then its velocity relvant to the trajectory
@@ -305,7 +359,7 @@ xr_traj_env
 #must be a datetime index in xarray
 # move xarray coordinate to variable
 xr_traj_env_time = xr_traj_env.reset_coords(['lat','long','alt'], drop=False)
-xr_traj_env_time = xr_traj_env_time.resample(time='5min', restore_coord_dims=True).mean()
+xr_traj_env_time = xr_traj_env_time.resample(time='5min', restore_coord_dims=True).mean().dropna(dim='time')
 xr_traj_env_time_coords = xr_traj_env_time
 #Move variable to xarray coordinate
 xr_traj_env_time = xr_traj_env_time.drop(['lat','long','alt'])
@@ -319,8 +373,9 @@ xr_traj_env_time = xr_traj_env_time.expand_dims({"lat":xr_traj_env_time_coords.l
 #xarray make a multiindex of lat long alt and time
 
 #grp_traj_env = 
-xr_traj_env_time.stack(alt_lat_long_time=['alt','lat','long','time'],create_index=True)
-xr_traj_env_time
+# may be useful : xr_traj_env_time.stack(alt_lat_long_time=['alt','lat','long','time'],create_index=True)
+
+
 
 # %% [markdown]
 # # Using average values per Km; TODO: find more principled way to remove autocorrelation 
@@ -402,7 +457,7 @@ with pm.Model(coords=coords) as thermal_pres:
     g0 = 9.80665
     M = 0.0289644
     R = 8.3144598
-    mu_p= pm.Deterministic('mu_p',P0 *  ((mu_t+273.15)/(Temp_[0]+273.15)) ** (g0 * M / (R * Alt_effect_temp/1000)),
+    mu_p= pm.Deterministic('mu_p',P0 *  ((mu_t+273.15)/(Temp_[0]+273.15)) ** (g0 * M / (R * (-Alt_effect_temp/1000))),
                                  dims='alt_lat_long_time')
     '''add_barometric_effects(T = mu_t,#Temp_, 
                                  L = Alt_effect_temp/1000, H = Alt_,  
@@ -426,7 +481,7 @@ az.plot_ppc(idata2, group='prior', kind='cumulative')
 
 # %%
 with thermal_pres:
-    idata2.extend(pm.sample(100, tune=1000))#,  nuts=dict(max_treedepth=15, target_accept=0.9)))
+    idata2.extend(pm.sample(1000, tune=1000, cores=1))#,  nuts=dict(max_treedepth=15, target_accept=0.9)))
     az.plot_trace(idata2)
     plt.subplots_adjust (hspace=0.4)#, wspace=0.4) 
     
@@ -467,9 +522,7 @@ idata2.map(reset_multi_dim, have_it=xr_traj_env_time_coords, dims=['alt_lat_long
 print(idata2)
 
 # %%
-idata3 = idata2.copy()
-idata3.posterior['alt_lat_long_time']  = idata3.constant_data.Altitude_m
-idata3
+
 
 # %%
 {f'mu_t[{i}]': alti for i, alti in zip(idata2.constant_data.alt_lat_long_time.values,
