@@ -457,7 +457,7 @@ with pm.Model(coords=coords) as thermal_pres:
     g0 = 9.80665
     M = 0.0289644
     R = 8.3144598
-    mu_p= pm.Deterministic('mu_p',P0 *  ((mu_t+273.15)/(Temp_[0]+273.15)) ** (g0 * M / (R * Alt_effect_temp/1000)),
+    mu_p= pm.Deterministic('mu_p',P0 *  ((mu_t+273.15)/(Temp_[0]+273.15)) ** (g0 * M / (R * (-Alt_effect_temp/1000))),
                                  dims='alt_lat_long_time')
     '''add_barometric_effects(T = mu_t,#Temp_, 
                                  L = Alt_effect_temp/1000, H = Alt_,  
