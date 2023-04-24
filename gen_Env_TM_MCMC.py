@@ -271,8 +271,8 @@ xr_traj_env
 ballon_alt_samples = np.arange(start=0,stop=max_alt_Km*1000+1,step=500)
 ballon_time = ballon_alt_samples/5
 ballon_time = pd.to_datetime(  ballon_time, unit='s')
-ballon_lat = [40, 135]
-ballon_long = [40, 75]
+ballon_lat = [40, 100]
+ballon_long = [40, 125]
 launch_count = 2
 ballon_delay = pd.Timedelta(hours=7)# 7*60*60 # 7 hrs later in seconds
 launch_idx = np.arange(0,launch_count)
@@ -359,7 +359,7 @@ xr_traj_env
 #must be a datetime index in xarray
 # move xarray coordinate to variable
 xr_traj_env_time = xr_traj_env.reset_coords(['lat','long','alt'], drop=False)
-xr_traj_env_time = xr_traj_env_time.resample(time='5min', restore_coord_dims=True).mean()
+xr_traj_env_time = xr_traj_env_time.resample(time='5min', restore_coord_dims=True).mean().dropna(dim='time')
 xr_traj_env_time_coords = xr_traj_env_time
 #Move variable to xarray coordinate
 xr_traj_env_time = xr_traj_env_time.drop(['lat','long','alt'])
@@ -373,7 +373,7 @@ xr_traj_env_time = xr_traj_env_time.expand_dims({"lat":xr_traj_env_time_coords.l
 #xarray make a multiindex of lat long alt and time
 
 #grp_traj_env = 
-xr_traj_env_time.stack(alt_lat_long_time=['alt','lat','long','time'],create_index=True)
+# may be useful : xr_traj_env_time.stack(alt_lat_long_time=['alt','lat','long','time'],create_index=True)
 
 
 
@@ -481,7 +481,7 @@ az.plot_ppc(idata2, group='prior', kind='cumulative')
 
 # %%
 with thermal_pres:
-    idata2.extend(pm.sample(100, tune=1000))#,  nuts=dict(max_treedepth=15, target_accept=0.9)))
+    idata2.extend(pm.sample(1000, tune=1000, cores=1))#,  nuts=dict(max_treedepth=15, target_accept=0.9)))
     az.plot_trace(idata2)
     plt.subplots_adjust (hspace=0.4)#, wspace=0.4) 
     
@@ -522,9 +522,7 @@ idata2.map(reset_multi_dim, have_it=xr_traj_env_time_coords, dims=['alt_lat_long
 print(idata2)
 
 # %%
-idata3 = idata2.copy()
-idata3.posterior['alt_lat_long_time']  = idata3.constant_data.Altitude_m
-idata3
+
 
 # %%
 {f'mu_t[{i}]': alti for i, alti in zip(idata2.constant_data.alt_lat_long_time.values,
