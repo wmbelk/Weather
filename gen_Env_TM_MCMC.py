@@ -257,6 +257,8 @@ xr_z = xr.DataArray(z, dims=['time'], coords={'time': time})
 xr_traj_env = xr_temp_pres.interp(lat=xr_x,long=xr_y,alt=xr_z)#, method='nearest')
 xr_traj_env = xr_traj_env.interpolate_na(dim='time', method='linear', fill_value="extrapolate")
 xr_traj_env.attrs =dict(units='seconds since 1970-01-01 00:00:00')
+ # delay start of trajectory
+xr_traj_env['time'] = xr_traj_env.time +pd.Timedelta(hours=.75)
 
 xr_traj_env
 
@@ -271,7 +273,6 @@ plt.show()
 xr_traj_env.Pressure.plot()
 plt.suptitle('pressure over time', fontsize = 'xx-large')
 plt.show()
-
 
 # %%
 #add wind direction and speed then its velocity relvant to the trajectory
@@ -332,31 +333,42 @@ xr_traj_env_time.stack(alt_lat_long_time=['alt','lat','long','time'],create_inde
 
 ballon_alt_samples = np.arange(start=0,stop=max_alt_Km*1000+1,step=500)
 ballon_time = ballon_alt_samples/5
+ballon_time = pd.to_datetime(  ballon_time, unit='s')
 ballon_lat = [40, 135]
 ballon_long = [40, 75]
-ballon_delay = 7*60*60 # 7 hrs later in seconds
-xr_ballon_env = xr_temp_pres.interp(lat=
-                                    xr.DataArray([ballon_lat]*len(ballon_time), 
+launch_count = 2
+ballon_delay = pd.Timedelta(hours=7)# 7*60*60 # 7 hrs later in seconds
+launch_idx = np.arange(0,launch_count)
+def ballon_release(xr_temp_pres, ballon_alt_samples, ballon_time, ballon_lat, ballon_long, ballon_delay, launch_idx):
+    #ballon launch delay is in hours, will convert number to pd.Timedelta
+    ballon_delay = pd.Timedelta(hours=ballon_delay)
+    coords={'launch':[launch_idx],'time':(('time'),ballon_time+ballon_delay)}
+    xr_ballon_env = xr_temp_pres.interp(lat=
+                                    xr.DataArray([[ballon_lat[launch_idx]]]*len(ballon_time), 
                                                  dims=['time','launch'],
-                                                 coords={'launch':[0,1],
-                                                         'time_l':(('launch','time'),[ballon_time, ballon_time+ballon_delay])}),
+                                                 coords=coords),
                                     long=
-                                    xr.DataArray([ballon_long]*len(ballon_time),
+                                    xr.DataArray([[ballon_long[launch_idx]]]*len(ballon_time),
                                                  dims=['time','launch'],
-                                                 coords={'launch':[0,1],
-                                                         'time_l':(('launch','time'),[ballon_time, ballon_time+ballon_delay])}),
+                                                 coords=coords),
                                     alt=
-                                    xr.DataArray([ballon_alt_samples,ballon_alt_samples],
+                                    xr.DataArray([ballon_alt_samples],
                                                  dims=['launch','time'],
-                                                 coords={'launch':[0,1],
-                                                         'time_l':(('launch','time'),[ballon_time, ballon_time+ballon_delay])}),
+                                                 coords=coords),
                                     )
-xr_ballon_env= xr_ballon_env.interpolate_na(dim='time',method='linear', fill_value = 'extrapolate')
-xr_ballon_env.attrs =dict(units='seconds since 1970-01-01 00:00:00')
+    xr_ballon_env= xr_ballon_env.interpolate_na(dim='time',method='linear', fill_value = 'extrapolate')
+    xr_ballon_env.attrs =dict(units='seconds since 1970-01-01 00:00:00')
+    return xr_ballon_env
 
 
+xr_ballon_env_0 = ballon_release(xr_temp_pres, ballon_alt_samples, ballon_time, ballon_lat, ballon_long, ballon_delay=0, launch_idx=0)
+xr_ballon_env_1 = ballon_release(xr_temp_pres, ballon_alt_samples, ballon_time, ballon_lat, ballon_long, ballon_delay=7, launch_idx=1)
+
+#TODO: remove the 'launch' dimension from the ballon_release function, then do not squeeze it out
+xr_ballon_env = xr.concat([xr_ballon_env_0.squeeze(), 
+                           xr_ballon_env_1.squeeze()], 
+                           dim='time')
 xr_ballon_env
-
 
 
 # %% [markdown]
